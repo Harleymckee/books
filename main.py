@@ -14,7 +14,7 @@ from tornado.web import Application, RequestHandler, StaticFileHandler
 from tornado.websocket import WebSocketHandler, WebSocketClosedError, websocket_connect
 from tornado.queues import Queue
 
-book = {0: {}, 1: {}, 'trades': []}
+book = {}
 
 class Publisher(object):
 		"""Handles new data to be passed on to subscribers."""
@@ -40,8 +40,8 @@ class Publisher(object):
 				while True:
 						message = yield self.messages.get()
 						if len(self.subscribers) > 0:
-								print("Pushing message {} to {} subscribers...".format(
-										message, len(self.subscribers)))
+								# print("Pushing message {} to {} subscribers...".format(
+								# 		message, len(self.subscribers)))
 								yield [subscriber.submit(message) for subscriber in self.subscribers]
 
 
@@ -88,11 +88,11 @@ class Subscription(WebSocketHandler):
 				except WebSocketClosedError:
 						self._close()
 
-
 @gen.coroutine
-def generate_data(publisher):
+def generate_feed(publisher, symbol):
+	book[symbol] = {0: {}, 1: {}, 'trades': []}
 	conn = yield websocket_connect("wss://api2.poloniex.com/")
-	conn.write_message(json.dumps({'command':'subscribe','channel':'ETH_ZRX'}))
+	conn.write_message(json.dumps({'command':'subscribe','channel': symbol}))
 	while True:
 		msg = yield conn.read_message()
 		if msg is None: break
@@ -102,19 +102,20 @@ def generate_data(publisher):
 			if order[0] is 'o':
 				[trade_or_order, update_type, price, quant] = order
 				if quant == '0.00000000':
-					book[update_type].pop(price, None)
+					book[symbol][update_type].pop(price, None)
 				else:
-					book[update_type][price] = quant
+					book[symbol][update_type][price] = quant
 			elif order[0] is 'i':
 				[trade_or_order, inner_book] = order
 				# book
-				book[0] = inner_book['orderBook'][0]
-				book[1] = inner_book['orderBook'][1]
-				# print(colored(json.loads(json.dumps(inner_book, indent=4, sort_keys=True)), 'blue'))
+				print('ok')
+				book[symbol][0] = inner_book['orderBook'][0]
+				book[symbol][1] = inner_book['orderBook'][1]
 				pass
 		# data = random.randint(0, 9)
-		book[0] = OrderedDict(sorted(book[0].items(), key=lambda t: t[0]))
-		book[1] = OrderedDict(sorted(book[1].items(), key=lambda t: t[0]))
+		book[symbol][0] = OrderedDict(sorted(book[symbol][0].items(), key=lambda t: t[0]))
+		book[symbol][1] = OrderedDict(sorted(book[symbol][1].items(), key=lambda t: t[0]))
+		# print(book)
 		yield publisher.submit(book)
 
 @gen.coroutine
@@ -133,7 +134,7 @@ def main():
 				]
 		)
 		app.listen(options.port)
-		yield [publisher.publish(), generate_data(publisher)]
+		yield [publisher.publish(), generate_feed(publisher, 'ETH_ZRX'), generate_feed(publisher, 'BTC_ETH')]
 
 if __name__ == "__main__":
 		IOLoop.instance().run_sync(main)
