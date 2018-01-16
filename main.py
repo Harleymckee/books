@@ -3,6 +3,9 @@ import _thread
 import time
 import json
 from termcolor import colored
+from functools import reduce
+import math
+import numpy as np
 
 from collections import OrderedDict
 
@@ -96,8 +99,8 @@ def generate_feed(publisher, symbol):
 	while True:
 		msg = yield conn.read_message()
 		if msg is None: break
-		list = json.loads(msg)
-		orders = list[2] if len(list) > 2 else list[1] if len(list) > 1 else []
+		payload = json.loads(msg)
+		orders = payload[2] if len(payload) > 2 else payload[1] if len(payload) > 1 else []
 		for order in orders:
 			if order[0] is 'o':
 				[trade_or_order, update_type, price, quant] = order
@@ -107,12 +110,38 @@ def generate_feed(publisher, symbol):
 					book[symbol][update_type][price] = quant
 			elif order[0] is 'i':
 				[trade_or_order, inner_book] = order
-				# book
-				print('ok')
 				book[symbol][0] = inner_book['orderBook'][0]
 				book[symbol][1] = inner_book['orderBook'][1]
 				pass
 		# data = random.randint(0, 9)
+
+
+		# def vwap(df):
+		# 	q = df.quantity.values
+		# 	p = df.price.values
+		# 	return df.assign(vwap=(p * q).cumsum() / q.cumsum())
+
+		od = OrderedDict(sorted(book[symbol][0].items(), key=lambda t: t[0]))
+
+		# NOT PRECISE
+		VWAP_PERCENT = 1
+		vwap_amount = math.floor((len(od) / VWAP_PERCENT) / len(od))
+
+		q = np.sum(
+			np.asarray(
+				list(map(float, list(od.values())[:vwap_amount]))
+			)
+		)
+
+		p = np.sum(
+			np.asarray(
+				list(map(float, list(od)[:vwap_amount]))
+			)
+		)
+
+		vwap = (p * q) / q
+		# this is only 0 vwap
+		book['vwap'] = {'percent': VWAP_PERCENT, 'price': vwap}
 		book[symbol][0] = OrderedDict(sorted(book[symbol][0].items(), key=lambda t: t[0]))
 		book[symbol][1] = OrderedDict(sorted(book[symbol][1].items(), key=lambda t: t[0]))
 		# print(book)
@@ -134,7 +163,7 @@ def main():
 				]
 		)
 		app.listen(options.port)
-		yield [publisher.publish(), generate_feed(publisher, 'ETH_ZRX'), generate_feed(publisher, 'BTC_ETH')]
+		yield [publisher.publish(), generate_feed(publisher, 'ETH_ZRX')] # , generate_feed(publisher, 'BTC_ETH')]
 
 if __name__ == "__main__":
 		IOLoop.instance().run_sync(main)
