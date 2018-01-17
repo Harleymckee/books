@@ -96,38 +96,37 @@ class Subscription(WebSocketHandler):
 
 @gen.coroutine
 def generate_feed(publisher, symbol):
-	book[symbol] = {0: {}, 1: {}, 'trades': []}
+	book[symbol] = {'ask': {}, 'bid': {}, 'trade': {}}
 	conn = yield websocket_connect("wss://api2.poloniex.com/")
 	conn.write_message(json.dumps({'command':'subscribe','channel': symbol}))
 	while True:
 		msg = yield conn.read_message()
 		if msg is None: break
 		payload = json.loads(msg)
+
 		orders = payload[2] if len(payload) > 2 else payload[1] if len(payload) > 1 else []
 		for order in orders:
 			if order[0] is 'o':
 				[trade_or_order, update_type, price, quant] = order
+				bid_or_ask = 'bid' if update_type else 'ask'
 				if quant == '0.00000000':
-					book[symbol][update_type].pop(price, None)
+					book[symbol][bid_or_ask].pop(price, None)
 				else:
-					book[symbol][update_type][price] = quant
+					book[symbol][bid_or_ask][price] = quant
 			elif order[0] is 'i':
 				[trade_or_order, inner_book] = order
-				book[symbol][0] = inner_book['orderBook'][0]
-				book[symbol][1] = inner_book['orderBook'][1]
+				book[symbol]['ask'] = inner_book['orderBook'][0]
+				book[symbol]['bid'] = inner_book['orderBook'][1]
 				pass
-		# data = random.randint(0, 9)
-
-
-		# def vwap(df):
-		# 	q = df.quantity.values
-		# 	p = df.price.values
-		# 	return df.assign(vwap=(p * q).cumsum() / q.cumsum())
-
+			elif order[0] is 't':
+				[trade_or_order, _id, update_type, price, quant, timestamp] = order
+				book[symbol]['trade'][price] = quant
+			else:
+				print(order)
+				pass
 
 		# NOT PRECISE
 		VWAP_TRUNCATE = 10
-		# vwap_amount = math.floor((len(od) / VWAP_PERCENT) / len(od))
 
 		def vwap(od):
 			q = np.asarray(
@@ -141,14 +140,15 @@ def generate_feed(publisher, symbol):
 			vwap = np.sum(p * q) / np.sum(q)
 			return vwap
 
+		ask = OrderedDict(sorted(book[symbol]['ask'].items(), key=lambda t: t[0]))
+		bid = OrderedDict(sorted(book[symbol]['bid'].items(), key=lambda t: t[0], reverse=True))
 
-		ask = OrderedDict(sorted(book[symbol][0].items(), key=lambda t: t[0]))
-		bid = OrderedDict(sorted(book[symbol][1].items(), key=lambda t: t[0], reverse=True))
+		trade = OrderedDict(sorted(book[symbol]['trade'].items(), key=lambda t: t[0]))
 
 		book[symbol]['vwap'] = {'truncate': VWAP_TRUNCATE, 'vwap_ask': vwap(ask), 'vwap_bid': vwap(bid)}
-		book[symbol][0] = ask
-		book[symbol][1] = bid
-		# print(book)
+		book[symbol]['trade'] = trade
+		book[symbol]['ask'] = ask
+		book[symbol]['bid'] = bid
 		yield publisher.submit(book)
 
 @gen.coroutine
