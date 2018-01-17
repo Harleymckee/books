@@ -60,6 +60,9 @@ class Subscription(WebSocketHandler):
 				self.publisher = publisher
 				self.messages = Queue()
 				self.finished = False
+		
+		def check_origin(self, origin):
+			return True
 
 		def open(self):
 				print("New subscriber.")
@@ -121,29 +124,30 @@ def generate_feed(publisher, symbol):
 		# 	p = df.price.values
 		# 	return df.assign(vwap=(p * q).cumsum() / q.cumsum())
 
-		od = OrderedDict(sorted(book[symbol][0].items(), key=lambda t: t[0]))
 
 		# NOT PRECISE
-		VWAP_PERCENT = 1
-		vwap_amount = math.floor((len(od) / VWAP_PERCENT) / len(od))
+		VWAP_TRUNCATE = 10
+		# vwap_amount = math.floor((len(od) / VWAP_PERCENT) / len(od))
 
-		q = np.sum(
-			np.asarray(
-				list(map(float, list(od.values())[:vwap_amount]))
+		def vwap(od):
+			q = np.asarray(
+				list(map(float, list(od.values())[:VWAP_TRUNCATE]))
 			)
-		)
-
-		p = np.sum(
-			np.asarray(
-				list(map(float, list(od)[:vwap_amount]))
+		
+			p = np.asarray(
+				list(map(float, list(od)[:VWAP_TRUNCATE]))
 			)
-		)
 
-		vwap = (p * q) / q
-		# this is only 0 vwap
-		book['vwap'] = {'percent': VWAP_PERCENT, 'price': vwap}
-		book[symbol][0] = OrderedDict(sorted(book[symbol][0].items(), key=lambda t: t[0]))
-		book[symbol][1] = OrderedDict(sorted(book[symbol][1].items(), key=lambda t: t[0]))
+			vwap = np.sum(p * q) / np.sum(q)
+			return vwap
+
+
+		ask = OrderedDict(sorted(book[symbol][0].items(), key=lambda t: t[0]))
+		bid = OrderedDict(sorted(book[symbol][1].items(), key=lambda t: t[0], reverse=True))
+
+		book[symbol]['vwap'] = {'truncate': VWAP_TRUNCATE, 'vwap_ask': vwap(ask), 'vwap_bid': vwap(bid)}
+		book[symbol][0] = ask
+		book[symbol][1] = bid
 		# print(book)
 		yield publisher.submit(book)
 
@@ -163,7 +167,7 @@ def main():
 				]
 		)
 		app.listen(options.port)
-		yield [publisher.publish(), generate_feed(publisher, 'ETH_ZRX')] # , generate_feed(publisher, 'BTC_ETH')]
+		yield [publisher.publish(), generate_feed(publisher, 'ETH_ZRX'), generate_feed(publisher, 'BTC_ZRX'), generate_feed(publisher, 'BTC_ETH')]
 
 if __name__ == "__main__":
 		IOLoop.instance().run_sync(main)
