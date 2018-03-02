@@ -27,11 +27,32 @@ class App extends Component {
         {
           Object.keys(this.state.data).map((key) => {
             const bids = this.state.data[key]['bid']
+            const ask = this.state.data[key]['ask']
+
+
+            Object.keys(bids).map((key) => Number(bids[key]))
+            const bidVol = Object.keys(bids).reduce((acc, key) => {
+              acc.push(
+                acc.reduce((a, b) => a + b, 0) + Number(bids[key])
+              )
+              return acc
+            }, [])
+
+            const askVol = Object.keys(ask).reduce((acc, key) => {
+              acc.push(
+                acc.reduce((a, b) => a + b, 0) + Number(ask[key])
+              )
+              return acc
+            }, [])
+
             return (
               <div className="col" {...{key}}>
                 <div className="col">
                   <div>
-                    <BarChart data={Object.keys(bids).map((key) => Number(bids[key]))} size={[500,500]} />
+                    <BarChart fill="#fe9922" data={bidVol} size={[500,500]} />
+                  </div>
+                  <div>
+                    <BarChart fill="#008000" data={askVol} size={[500,500]} />
                   </div>
                   <div style={{display:'flex', width: '100%'}}>
                       <pre>

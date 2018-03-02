@@ -164,8 +164,8 @@ def generate_feed(publisher, symbol):
 			vwap = np.sum(p * q) / np.sum(q)
 			return vwap
 
-		ask = OrderedDict(sorted(book[symbol]['ask'].items(), key=lambda t: t[0])[:20])
-		bid = OrderedDict(sorted(book[symbol]['bid'].items(), key=lambda t: t[0], reverse=True)[:20])
+		ask = OrderedDict(sorted(book[symbol]['ask'].items(), key=lambda t: t[0])[:100])
+		bid = OrderedDict(sorted(book[symbol]['bid'].items(), key=lambda t: t[0], reverse=True)[:100])
 
 		trade = OrderedDict(sorted(book[symbol]['trade'].items(), key=lambda t: t[0]))
 
