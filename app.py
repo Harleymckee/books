@@ -21,6 +21,29 @@ import subprocess
 
 book = {}
 
+# def prepare_data_polo(book, symbol, payload):
+# 	orders = payload[2] if len(payload) > 2 else payload[1] if len(payload) > 1 else []
+# 	for order in orders:
+# 		if order[0] is 'o':
+# 			[trade_or_order, update_type, price, quant] = order
+# 			bid_or_ask = 'bid' if update_type else 'ask'
+# 			if quant == '0.00000000':
+# 				book[symbol][bid_or_ask].pop(price, None)
+# 			else:
+# 				book[symbol][bid_or_ask][price] = quant
+# 		elif order[0] is 'i':
+# 			[trade_or_order, inner_book] = order
+# 			book[symbol]['ask'] = inner_book['orderBook'][0]
+# 			book[symbol]['bid'] = inner_book['orderBook'][1]
+# 			pass
+# 		elif order[0] is 't':
+# 			[trade_or_order, _id, update_type, price, quant, timestamp] = order
+# 			book[symbol]['trade'][price] = quant
+# 		else:
+# 			print(order)
+# 			pass
+# 	return book
+
 class Publisher(object):
 		"""Handles new data to be passed on to subscribers."""
 		def __init__(self):
@@ -105,7 +128,6 @@ def generate_feed(publisher, symbol):
 		msg = yield conn.read_message()
 		if msg is None: break
 		payload = json.loads(msg)
-
 		orders = payload[2] if len(payload) > 2 else payload[1] if len(payload) > 1 else []
 		for order in orders:
 			if order[0] is 'o':
@@ -142,8 +164,8 @@ def generate_feed(publisher, symbol):
 			vwap = np.sum(p * q) / np.sum(q)
 			return vwap
 
-		ask = OrderedDict(sorted(book[symbol]['ask'].items(), key=lambda t: t[0]))
-		bid = OrderedDict(sorted(book[symbol]['bid'].items(), key=lambda t: t[0], reverse=True))
+		ask = OrderedDict(sorted(book[symbol]['ask'].items(), key=lambda t: t[0])[:20])
+		bid = OrderedDict(sorted(book[symbol]['bid'].items(), key=lambda t: t[0], reverse=True)[:20])
 
 		trade = OrderedDict(sorted(book[symbol]['trade'].items(), key=lambda t: t[0]))
 
